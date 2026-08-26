@@ -1,5 +1,5 @@
 <script setup>
-import { formatDate, formatMoney, formatPercent, formatTerm } from '../lib/format.js'
+import { formatDate, formatMoney, formatPercent, formatTerm, plural } from '../lib/format.js'
 
 defineProps({
   result: { type: Object, default: null },
@@ -8,51 +8,41 @@ defineProps({
 
 <template>
   <section v-if="result" class="space-y-4">
-    <div v-if="result.hasExtras && result.savings > 0" class="save-banner">
-      <p class="eyebrow text-moss">Выгода досрочного погашения</p>
-      <p class="save-value">Вы сэкономили {{ formatMoney(result.savings, { integer: true }) }}</p>
-      <p class="hint">
-        Переплата {{ formatMoney(result.base.totalInterest, { integer: true }) }}
-        → {{ formatMoney(result.extra.totalInterest, { integer: true }) }}
-      </p>
+    <div
+      class="banner-grid"
+      :class="{ single: !(result.hasExtras && result.savings > 0) }"
+    >
+      <div class="save-banner">
+        <p class="eyebrow">Уже выплачено</p>
+        <p class="save-value">Вы потратили {{ formatMoney(result.paid.spent, { integer: true }) }}</p>
+        <p v-if="result.paid.paidMonths" class="hint">
+          {{ result.paid.paidMonths }}
+          {{ plural(result.paid.paidMonths, 'платёж', 'платежа', 'платежей') }}
+          <template v-if="result.paid.spentExtra">
+            · досрочно {{ formatMoney(result.paid.spentExtra, { integer: true }) }}
+          </template>
+          · остаток {{ formatMoney(result.paid.remaining, { integer: true }) }}
+        </p>
+        <p v-else class="hint">
+          Выплаты ещё не начались, первый платёж {{ formatDate(result.startDate) }}
+        </p>
+      </div>
+
+      <div v-if="result.hasExtras && result.savings > 0" class="save-banner">
+        <p class="eyebrow">Выгода досрочного погашения</p>
+        <p class="save-value">Вы сэкономили {{ formatMoney(result.savings, { integer: true }) }}</p>
+        <p class="hint">
+          Переплата {{ formatMoney(result.base.totalInterest, { integer: true }) }}
+          → {{ formatMoney(result.extra.totalInterest, { integer: true }) }}
+        </p>
+      </div>
     </div>
-    <div v-else-if="result.hasExtras && result.savings <= 0" class="save-banner muted">
+    <div v-if="result.hasExtras && result.savings <= 0" class="save-banner muted">
       <p class="hint">Досрочные платежи не уменьшили переплату — проверьте даты и суммы.</p>
     </div>
 
-    <div class="compare-grid" :class="{ single: !result.hasExtras }">
-      <article class="panel result-card">
-        <header class="panel-head">
-          <p class="eyebrow">Без досрочек</p>
-          <h2>Базовый сценарий</h2>
-        </header>
-        <dl class="stats">
-          <div>
-            <dt>Ежемесячный платёж</dt>
-            <dd>{{ formatMoney(result.base.initialPayment) }}</dd>
-          </div>
-          <div>
-            <dt>Переплата</dt>
-            <dd>
-              {{ formatMoney(result.base.totalInterest, { integer: true }) }}
-              <small>{{ formatPercent(result.base.overpayPercent) }} от суммы кредита</small>
-            </dd>
-          </div>
-          <div>
-            <dt>Всего выплат</dt>
-            <dd>{{ formatMoney(result.base.totalPaid, { integer: true }) }}</dd>
-          </div>
-          <div>
-            <dt>Срок / погашение</dt>
-            <dd>
-              {{ formatTerm(result.base.months) }}
-              <small>{{ formatDate(result.base.endDate) }}</small>
-            </dd>
-          </div>
-        </dl>
-      </article>
-
-      <article v-if="result.hasExtras" class="panel result-card accent">
+    <div class="compare-grid single">
+      <article class="panel result-card accent">
         <header class="panel-head">
           <p class="eyebrow text-moss">С досрочным погашением</p>
           <h2>Новый график</h2>

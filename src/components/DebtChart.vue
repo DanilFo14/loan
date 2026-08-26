@@ -13,7 +13,7 @@ const svgRef = ref(null)
 
 const W = 720
 const H = 280
-const P = { top: 24, right: 20, bottom: 40, left: 64 }
+const P = { top: 24, right: 16, bottom: 42, left: 78 }
 
 const series = computed(() => {
   const base = [{ month: 0, remaining: props.principal }, ...props.baseRows.map((row) => ({
@@ -53,13 +53,13 @@ const yTicks = computed(() => {
 })
 
 const xTicks = computed(() => {
-  const years = Math.max(1, Math.ceil(maxMonth.value / 12))
+  const max = maxMonth.value
+  const years = Math.floor(max / 12)
   const step = years > 16 ? 4 : years > 8 ? 2 : 1
   const ticks = []
   for (let year = 0; year <= years; year += step) {
     ticks.push(year * 12)
   }
-  if (ticks.at(-1) !== maxMonth.value) ticks.push(maxMonth.value)
   return ticks
 })
 
@@ -145,7 +145,7 @@ function nearest(rows, month) {
           class="axis"
           text-anchor="middle"
         >
-          {{ tick === 0 ? 'старт' : tick % 12 === 0 ? `${tick / 12} г.` : `${tick} мес.` }}
+          {{ tick === 0 ? 'старт' : `${tick / 12} г.` }}
         </text>
 
         <polyline class="line navy" fill="none" :points="toPoints(series.base)" />

@@ -144,6 +144,28 @@ function buildSchedule({ amount, rate, startDate, extras, plannedMonths }) {
   }
 }
 
+function todayIso() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function summarizePaid(rows, principal, today) {
+  const paid = rows.filter((row) => row.date <= today)
+  const spent = round2(paid.reduce((sum, row) => sum + row.payment, 0))
+  const spentExtra = round2(paid.reduce((sum, row) => sum + row.extra, 0))
+  const last = paid.at(-1)
+  return {
+    spent,
+    spentExtra,
+    paidMonths: paid.length,
+    remaining: last ? last.remaining : principal,
+    lastDate: last?.date ?? null,
+  }
+}
+
 export function calculateMortgage({
   amount,
   rate,
@@ -180,6 +202,7 @@ export function calculateMortgage({
   const overpayPct = principal > 0 ? (base.totalInterest / principal) * 100 : 0
   const extraOverpayPct = principal > 0 ? (withExtras.totalInterest / principal) * 100 : 0
   const hasExtras = extras.some((item) => item.date && Number(item.amount) > 0)
+  const paid = summarizePaid(withExtras.rows, principal, todayIso())
 
   return {
     principal,
@@ -194,6 +217,7 @@ export function calculateMortgage({
       ...withExtras,
       overpayPercent: extraOverpayPct,
     },
+    paid,
     savings,
     paymentChanged: hasExtras && Math.abs(withExtras.payment - base.payment) > 0.01,
     termChanged: hasExtras && withExtras.months !== base.months,
