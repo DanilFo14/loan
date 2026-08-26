@@ -414,6 +414,10 @@ body {
   letter-spacing: -0.03em;
 }
 
+.money-nowrap {
+  white-space: nowrap;
+}
+
 .save-banner.muted {
   background: #fffdf8;
   color: var(--color-ink);
@@ -546,7 +550,7 @@ body {
 
 .axis {
   fill: var(--color-muted);
-  font-size: 15px;
+  font-size: 14px;
   font-family: var(--font-sans);
 }
 

@@ -14,7 +14,7 @@ defineProps({
     >
       <div class="save-banner">
         <p class="eyebrow">Уже выплачено</p>
-        <p class="save-value">Вы потратили {{ formatMoney(result.paid.spent, { integer: true }) }}</p>
+        <p class="save-value">Вы потратили <span class="money-nowrap">{{ formatMoney(result.paid.spent, { integer: true }) }}</span></p>
         <p v-if="result.paid.paidMonths" class="hint">
           {{ result.paid.paidMonths }}
           {{ plural(result.paid.paidMonths, 'платёж', 'платежа', 'платежей') }}
@@ -30,7 +30,7 @@ defineProps({
 
       <div v-if="result.hasExtras && result.savings > 0" class="save-banner">
         <p class="eyebrow">Выгода досрочного погашения</p>
-        <p class="save-value">Вы сэкономили {{ formatMoney(result.savings, { integer: true }) }}</p>
+        <p class="save-value">Вы сэкономили <span class="money-nowrap">{{ formatMoney(result.savings, { integer: true }) }}</span></p>
         <p class="hint">
           Переплата {{ formatMoney(result.base.totalInterest, { integer: true }) }}
           → {{ formatMoney(result.extra.totalInterest, { integer: true }) }}

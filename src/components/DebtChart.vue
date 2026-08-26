@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { formatMoney } from '../lib/format.js'
+import { formatMoney, formatThousands } from '../lib/format.js'
 
 const props = defineProps({
   baseRows: { type: Array, default: () => [] },
@@ -13,7 +13,7 @@ const svgRef = ref(null)
 
 const W = 720
 const H = 280
-const P = { top: 24, right: 16, bottom: 42, left: 78 }
+const P = { top: 20, right: 16, bottom: 40, left: 82 }
 
 const series = computed(() => {
   const base = [{ month: 0, remaining: props.principal }, ...props.baseRows.map((row) => ({
@@ -130,18 +130,18 @@ function nearest(rows, month) {
         <text
           v-for="tick in yTicks"
           :key="'yl' + tick"
-          :x="P.left - 8"
-          :y="y(tick) + 4"
+          :x="P.left - 10"
+          :y="y(tick) + 5"
           class="axis"
           text-anchor="end"
         >
-          {{ formatMoney(tick, { integer: true }).replace(' ₽', '') }}
+          {{ formatThousands(Math.round(tick)) }}
         </text>
         <text
           v-for="tick in xTicks"
           :key="'x' + tick"
           :x="x(tick)"
-          :y="H - 12"
+          :y="H - 16"
           class="axis"
           text-anchor="middle"
         >

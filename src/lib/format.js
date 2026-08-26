@@ -16,7 +16,7 @@ export function formatMoney(value, { integer = false } = {}) {
   const n = Number(value)
   if (!Number.isFinite(n)) return '—'
   const formatted = integer ? moneyIntFmt.format(Math.round(n)) : moneyFmt.format(n)
-  return `${formatted} ₽`
+  return `${formatted}\u00A0₽`
 }
 
 export function formatPercent(value) {
