@@ -11,6 +11,7 @@ export const earlyPayments = [
   { date: '2026-06-13', amount: 150000, type: 'term' },
   { date: '2026-07-13', amount: 170000, type: 'term' },
   { date: '2026-08-13', amount: 260000, type: 'term' },
+  { date: '2026-09-13', amount: 121000, type: 'term' },
 ]
 
 export function seededExtras() {
