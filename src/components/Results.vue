@@ -37,6 +37,29 @@ defineProps({
         </p>
       </div>
     </div>
+
+    <div v-if="result.forecast" class="save-banner">
+      <p class="eyebrow">Прогноз по медиане</p>
+      <p v-if="result.forecast.alreadyPaidOff" class="save-value">Ипотека уже закрыта</p>
+      <p v-else-if="result.forecast.possible" class="save-value">
+        Закроете {{ formatDate(result.forecast.endDate) }}
+      </p>
+      <p v-else class="save-value">При таком темпе кредит не закроется</p>
+      <p class="hint">
+        <template v-if="result.forecast.medianExtra">
+          Медианная досрочка
+          <span class="money-nowrap">{{ formatMoney(result.forecast.medianExtra, { integer: true }) }}</span>
+          · медианный платёж за месяц
+          <span class="money-nowrap">{{ formatMoney(result.forecast.medianTotal, { integer: true }) }}</span>
+        </template>
+        <template v-else>
+          Пока нет досрочек — прогноз без дополнительных взносов
+        </template>
+        <template v-if="result.forecast.possible && result.forecast.extraMonths">
+          · ещё {{ formatTerm(result.forecast.extraMonths) }}
+        </template>
+      </p>
+    </div>
     <div v-if="result.hasExtras && result.savings <= 0" class="save-banner muted">
       <p class="hint">Досрочные платежи не уменьшили переплату — проверьте даты и суммы.</p>
     </div>

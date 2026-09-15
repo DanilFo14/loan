@@ -130,6 +130,7 @@ function buildSchedule({ amount, rate, startDate, extras, plannedMonths }) {
       remaining,
       hasExtra: extraTotal > 0,
       extraTypes,
+      paymentAfter: payment,
     })
   }
 
@@ -150,6 +151,101 @@ function todayIso() {
   const m = String(now.getMonth() + 1).padStart(2, '0')
   const d = String(now.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function median(values) {
+  if (!values.length) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  if (sorted.length % 2) return sorted[mid]
+  return round2((sorted[mid - 1] + sorted[mid]) / 2)
+}
+
+function forecastPayoff({ remaining, rate, payment, medianExtra, lastPaidDate }) {
+  if (remaining <= EPS) {
+    return {
+      possible: true,
+      alreadyPaidOff: true,
+      extraMonths: 0,
+      endDate: lastPaidDate,
+      medianExtra,
+    }
+  }
+
+  const r = monthlyRate(rate)
+  if (payment + medianExtra <= remaining * r + 0.0001) {
+    return {
+      possible: false,
+      alreadyPaidOff: false,
+      extraMonths: Number.POSITIVE_INFINITY,
+      endDate: null,
+      medianExtra,
+    }
+  }
+
+  let left = remaining
+  let months = 0
+  let date = lastPaidDate
+
+  while (left > EPS && months < MAX_MONTHS) {
+    months += 1
+    date = addMonths(lastPaidDate, months)
+    const interest = round2(left * r)
+
+    let regular = payment
+    if (left + interest <= payment + EPS) {
+      left = 0
+      break
+    }
+
+    let principalPart = round2(regular - interest)
+    if (principalPart > left) {
+      principalPart = left
+    }
+    left = round2(left - principalPart)
+
+    if (left > EPS && medianExtra > 0) {
+      const extra = round2(Math.min(medianExtra, left))
+      left = round2(left - extra)
+    }
+    if (left < 0 || left <= EPS) left = 0
+  }
+
+  return {
+    possible: left <= EPS,
+    alreadyPaidOff: false,
+    extraMonths: months,
+    endDate: date,
+    medianExtra,
+  }
+}
+
+function buildForecast(rows, rate, today) {
+  const paid = rows.filter((row) => row.date <= today)
+  if (!paid.length) return null
+
+  const extras = paid.filter((row) => row.extra > 0).map((row) => row.extra)
+  const totals = paid.map((row) => row.payment)
+  const medianExtra = median(extras)
+  const medianTotal = median(totals)
+  const last = paid.at(-1)
+  const remaining = last.remaining
+  const payment = last.paymentAfter ?? last.regular
+
+  return {
+    medianExtra,
+    medianTotal,
+    sampleSize: extras.length,
+    paidMonths: paid.length,
+    remaining,
+    ...forecastPayoff({
+      remaining,
+      rate,
+      payment,
+      medianExtra,
+      lastPaidDate: last.date,
+    }),
+  }
 }
 
 function summarizePaid(rows, principal, today) {
@@ -203,6 +299,7 @@ export function calculateMortgage({
   const extraOverpayPct = principal > 0 ? (withExtras.totalInterest / principal) * 100 : 0
   const hasExtras = extras.some((item) => item.date && Number(item.amount) > 0)
   const paid = summarizePaid(withExtras.rows, principal, todayIso())
+  const forecast = buildForecast(withExtras.rows, annualRate, todayIso())
 
   return {
     principal,
@@ -218,6 +315,7 @@ export function calculateMortgage({
       overpayPercent: extraOverpayPct,
     },
     paid,
+    forecast,
     savings,
     paymentChanged: hasExtras && Math.abs(withExtras.payment - base.payment) > 0.01,
     termChanged: hasExtras && withExtras.months !== base.months,
