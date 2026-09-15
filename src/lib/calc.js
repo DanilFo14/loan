@@ -297,9 +297,23 @@ export function calculateMortgage({
   const savings = round2(base.totalInterest - withExtras.totalInterest)
   const overpayPct = principal > 0 ? (base.totalInterest / principal) * 100 : 0
   const extraOverpayPct = principal > 0 ? (withExtras.totalInterest / principal) * 100 : 0
+  const today = todayIso()
   const hasExtras = extras.some((item) => item.date && Number(item.amount) > 0)
-  const paid = summarizePaid(withExtras.rows, principal, todayIso())
-  const forecast = buildForecast(withExtras.rows, annualRate, todayIso())
+  const paid = summarizePaid(withExtras.rows, principal, today)
+  const paidExtras = extras.filter(
+    (item) => item.date && item.date <= today && Number(item.amount) > 0,
+  )
+  const afterPaidExtras = paidExtras.length
+    ? buildSchedule({
+        amount: principal,
+        rate: annualRate,
+        startDate,
+        extras: paidExtras,
+        plannedMonths,
+      })
+    : base
+  paid.monthsClosedByExtra = Math.max(0, plannedMonths - afterPaidExtras.months)
+  const forecast = buildForecast(withExtras.rows, annualRate, today)
 
   return {
     principal,

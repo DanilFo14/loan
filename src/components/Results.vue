@@ -1,5 +1,6 @@
 <script setup>
 import { formatDate, formatMoney, formatPercent, formatTerm, plural } from '../lib/format.js'
+import MonthProgress from './MonthProgress.vue'
 
 defineProps({
   result: { type: Object, default: null },
@@ -63,6 +64,8 @@ defineProps({
     <div v-if="result.hasExtras && result.savings <= 0" class="save-banner muted">
       <p class="hint">Досрочные платежи не уменьшили переплату — проверьте даты и суммы.</p>
     </div>
+
+    <MonthProgress :result="result" />
 
     <div class="compare-grid single">
       <article class="panel result-card accent">
