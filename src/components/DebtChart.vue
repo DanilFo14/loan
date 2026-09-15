@@ -100,7 +100,7 @@ function nearest(rows, month) {
   <section class="panel">
     <header class="panel-head row">
       <div>
-        <p class="eyebrow">Динамика долга</p>
+        <p class="eyebrow">Динамика долга.</p>
         <h2>Как тает остаток</h2>
       </div>
       <ul class="legend">
