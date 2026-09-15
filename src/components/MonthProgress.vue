@@ -13,7 +13,7 @@ const summary = computed(() => {
     props.result.paid?.monthsClosedByExtra || 0,
     Math.max(0, total - paidCount),
   )
-  return { total, paidCount, extraClosed }
+  return { total, paidCount, extraClosed, doneCount: paidCount + extraClosed }
 })
 
 const years = computed(() => {
@@ -50,7 +50,7 @@ function cellTitle(cell) {
         <p class="eyebrow">Прогресс</p>
         <h2>{{ summary.total }} {{ plural(summary.total, 'месяц', 'месяца', 'месяцев') }}</h2>
       </div>
-      <p class="hint">{{ summary.paidCount }} из {{ summary.total }}</p>
+      <p class="hint">{{ summary.doneCount }} из {{ summary.total }}</p>
     </header>
 
     <div class="month-grid" role="img" aria-label="Прогресс по месяцам кредита">
