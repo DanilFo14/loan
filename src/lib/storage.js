@@ -1,6 +1,6 @@
 import { seededExtras } from '../data/earlyPayments.js'
 
-const STORAGE_KEY = 'mortgage-calculator:v3'
+const STORAGE_KEY = 'mortgage-calculator:v4'
 
 export function defaultState() {
   return {

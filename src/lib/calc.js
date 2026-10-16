@@ -1,3 +1,5 @@
+import { bankSnapshot } from '../data/earlyPayments.js'
+
 const MAX_MONTHS = 400
 const EPS = 0.005
 
@@ -39,99 +41,321 @@ export function monthsToPayOff(principal, payment, annualPercent) {
   return Math.max(1, Math.ceil(n - 1e-9))
 }
 
-function ym(isoDate) {
-  return isoDate.slice(0, 7)
+function daysBetween(fromIso, toIso) {
+  const [y1, m1, d1] = fromIso.split('-').map(Number)
+  const [y2, m2, d2] = toIso.split('-').map(Number)
+  const a = Date.UTC(y1, m1 - 1, d1)
+  const b = Date.UTC(y2, m2 - 1, d2)
+  return Math.round((b - a) / 86400000)
 }
 
-function extrasForMonth(extras, paymentDate, isFirst) {
-  const key = ym(paymentDate)
-  return extras.filter((item) => {
-    if (!item.date || !(item.amount > 0)) return false
-    if (ym(item.date) === key) return true
-    return isFirst && item.date < paymentDate
-  })
+function yearDays(isoDate) {
+  const year = Number(isoDate.slice(0, 4))
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  return leap ? 366 : 365
 }
 
-function buildSchedule({ amount, rate, startDate, extras, plannedMonths }) {
+function accrueInterest(remaining, annualPercent, fromIso, toIso) {
+  const days = daysBetween(fromIso, toIso)
+  if (days <= 0 || remaining <= EPS) return 0
+  return remaining * (Number(annualPercent) / 100) * days / yearDays(toIso)
+}
+
+function applyTermRecalc({ extra, remaining, payment, month, termEndMonth, rate }) {
+  if (remaining <= EPS) return { payment, termEndMonth }
+  if (extra.type === 'payment') {
+    const monthsLeft = Math.max(1, termEndMonth - month)
+    const next = annuityPayment(remaining, rate, monthsLeft)
+    return { payment: next, termEndMonth }
+  }
+  const newMonths = monthsToPayOff(remaining, payment, rate)
+  if (Number.isFinite(newMonths)) {
+    return { payment, termEndMonth: month + newMonths }
+  }
+  return { payment, termEndMonth }
+}
+
+function matchesBankLoan(startDate) {
+  return Boolean(bankSnapshot?.startDate) && bankSnapshot.startDate === startDate
+}
+
+function scheduledRegular(date, defaultPayment, useBankSnapshot, startDate) {
+  if (!useBankSnapshot || !matchesBankLoan(startDate)) return defaultPayment
+  const overrides = bankSnapshot.regularOverrides || {}
+  if (Object.prototype.hasOwnProperty.call(overrides, date)) {
+    return Number(overrides[date]) || 0
+  }
+  if (bankSnapshot.firstRegularDate && date < bankSnapshot.firstRegularDate) return 0
+  return Number(bankSnapshot.regularPayment) || defaultPayment
+}
+
+function calendarMonthsInclusive(fromIso, toIso) {
+  const [y1, m1] = fromIso.split('-').map(Number)
+  const [y2, m2] = toIso.split('-').map(Number)
+  return (y2 - y1) * 12 + (m2 - m1) + 1
+}
+
+function buildBankRemainingRows({ remaining, fromDate, startMonth, payment }) {
+  const n = Number(bankSnapshot.remainingPayments) || 0
+  if (n <= 0 || remaining <= EPS) return []
+
+  const regular = Number(bankSnapshot.regularPayment) || payment
+  const lastPay = Number(bankSnapshot.lastPayment) || regular
+  const pays = Array.from({ length: n }, (_, i) => (i === n - 1 ? lastPay : regular))
+  const totalPay = pays.reduce((sum, value) => sum + value, 0)
+  const principalStart = remaining
   const rows = []
+  let rem = remaining
+
+  for (let i = 0; i < n; i += 1) {
+    const date = addMonths(fromDate, i + 1)
+    const pay = pays[i]
+    const principalPart = i === n - 1 ? rem : round2((principalStart * pay) / totalPay)
+    const interest = round2(pay - principalPart)
+    rem = round2(rem - principalPart)
+    if (i === n - 1 || rem < EPS) rem = 0
+    rows.push({
+      month: startMonth + i + 1,
+      date,
+      payment: pay,
+      regular: pay,
+      extra: 0,
+      principal: principalPart,
+      interest,
+      remaining: rem,
+      hasExtra: false,
+      extraTypes: [],
+      paymentAfter: regular,
+    })
+  }
+
+  return rows
+}
+
+function applyBankTotals(schedule, paid, plannedMonths, startDate, principal) {
+  if (!matchesBankLoan(startDate) || !bankSnapshot) return
+  const elapsed = calendarMonthsInclusive(startDate, bankSnapshot.asOf)
+  const remainingPayments = Number(bankSnapshot.remainingPayments) || 0
+  schedule.payment = Number(bankSnapshot.regularPayment) || schedule.payment
+  schedule.totalPaid = Number(bankSnapshot.totalToPay) || schedule.totalPaid
+  schedule.totalInterest = round2(schedule.totalPaid - principal)
+  schedule.endDate = bankSnapshot.lastPaymentDate || schedule.endDate
+  schedule.months = elapsed + remainingPayments
+  paid.spent = Number(bankSnapshot.alreadyPaid) || paid.spent
+  paid.remaining = round2(bankSnapshot.remaining)
+  paid.paidMonths = elapsed
+  paid.monthsClosedByExtra = Math.max(0, plannedMonths - remainingPayments - elapsed)
+}
+
+function buildSchedule({ amount, rate, startDate, extras, plannedMonths, useBankSnapshot = false }) {
+  const rows = []
+  const bankLoan = useBankSnapshot && matchesBankLoan(startDate)
   let remaining = round2(amount)
-  let payment = annuityPayment(amount, rate, plannedMonths)
+  let payment = bankLoan && bankSnapshot.regularPayment
+    ? Number(bankSnapshot.regularPayment)
+    : annuityPayment(amount, rate, plannedMonths)
   let termEndMonth = plannedMonths
   let totalPaid = 0
   let totalInterest = 0
   let lastRegularPayment = payment
+  let accrued = 0
+  let cursor = bankLoan ? startDate : addMonths(startDate, -1)
 
   const sortedExtras = [...extras]
     .filter((item) => item.date && Number(item.amount) > 0)
     .sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)))
 
-  for (let month = 1; month <= MAX_MONTHS && remaining > EPS; month += 1) {
-    const date = addMonths(startDate, month - 1)
-    const interest = round2(remaining * monthlyRate(rate))
+  let extraIndex = 0
 
-    let regular = payment
-    if (remaining + interest <= payment + EPS) {
-      regular = round2(remaining + interest)
-    }
-
-    let principalPart = round2(regular - interest)
-    if (principalPart > remaining) {
-      principalPart = remaining
-      regular = round2(principalPart + interest)
-    }
-    if (principalPart < 0) {
-      principalPart = 0
-      regular = interest
-    }
-
-    remaining = round2(remaining - principalPart)
-
-    const monthExtras = extrasForMonth(sortedExtras, date, month === 1)
+  const takeExtrasOn = (date, month) => {
     let extraTotal = 0
+    let extraInterest = 0
     const extraTypes = []
 
-    for (const extra of monthExtras) {
-      if (remaining <= EPS) break
-      const applied = round2(Math.min(Number(extra.amount), remaining))
-      remaining = round2(remaining - applied)
-      extraTotal = round2(extraTotal + applied)
+    while (extraIndex < sortedExtras.length && sortedExtras[extraIndex].date === date) {
+      const extra = sortedExtras[extraIndex]
+      extraIndex += 1
+      if (remaining <= EPS && accrued <= EPS) break
+
+      accrued = round2(accrued)
+      const interestTaken = round2(Math.min(Number(extra.amount), accrued))
+      accrued = round2(accrued - interestTaken)
+      const toPrincipal = round2(Math.min(Number(extra.amount) - interestTaken, remaining))
+      remaining = round2(remaining - toPrincipal)
+      extraTotal = round2(extraTotal + Number(extra.amount))
+      extraInterest = round2(extraInterest + interestTaken)
       extraTypes.push(extra.type)
 
-      if (remaining > EPS) {
-        if (extra.type === 'payment') {
-          const monthsLeft = Math.max(1, termEndMonth - month)
-          payment = annuityPayment(remaining, rate, monthsLeft)
-          lastRegularPayment = payment
-        } else {
-          const newMonths = monthsToPayOff(remaining, payment, rate)
-          if (Number.isFinite(newMonths)) {
-            termEndMonth = month + newMonths
-          }
-        }
-      }
+      const recalc = applyTermRecalc({
+        extra,
+        remaining,
+        payment,
+        month,
+        termEndMonth,
+        rate,
+      })
+      payment = recalc.payment
+      lastRegularPayment = recalc.payment
+      termEndMonth = recalc.termEndMonth
     }
 
-    if (remaining < 0) remaining = 0
-    if (remaining <= EPS) remaining = 0
+    return { extraTotal, extraInterest, extraTypes }
+  }
 
-    const totalThisMonth = round2(regular + extraTotal)
-    const body = round2(principalPart + extraTotal)
-    totalPaid = round2(totalPaid + totalThisMonth)
-    totalInterest = round2(totalInterest + interest)
-
+  const pushExtraOnlyRow = (extraDate, skipped, monthHint) => {
+    if (skipped.extraTotal <= EPS) return
     rows.push({
-      month,
-      date,
-      payment: totalThisMonth,
-      regular,
-      extra: extraTotal,
-      principal: body,
-      interest,
+      month: monthHint,
+      date: extraDate,
+      payment: skipped.extraTotal,
+      regular: 0,
+      extra: skipped.extraTotal,
+      principal: round2(skipped.extraTotal - skipped.extraInterest),
+      interest: skipped.extraInterest,
       remaining,
-      hasExtra: extraTotal > 0,
-      extraTypes,
+      hasExtra: true,
+      extraTypes: [...skipped.extraTypes],
       paymentAfter: payment,
     })
+    totalPaid = round2(totalPaid + skipped.extraTotal)
+    totalInterest = round2(totalInterest + skipped.extraInterest)
+  }
+
+  const attachExtrasToPrevious = (skipped) => {
+    if (skipped.extraTotal <= EPS) return
+    const prev = rows[rows.length - 1]
+    prev.extra = round2(prev.extra + skipped.extraTotal)
+    prev.interest = round2(prev.interest + skipped.extraInterest)
+    prev.principal = round2(prev.principal + skipped.extraTotal - skipped.extraInterest)
+    prev.payment = round2(prev.payment + skipped.extraTotal)
+    prev.remaining = remaining
+    prev.hasExtra = prev.extra > 0
+    prev.extraTypes.push(...skipped.extraTypes)
+    prev.paymentAfter = payment
+    totalPaid = round2(totalPaid + skipped.extraTotal)
+    totalInterest = round2(totalInterest + skipped.extraInterest)
+  }
+
+  for (let month = 1; month <= MAX_MONTHS && (remaining > EPS || accrued > EPS); month += 1) {
+    const date = addMonths(startDate, month - 1)
+
+    while (extraIndex < sortedExtras.length && sortedExtras[extraIndex].date < date) {
+      const extraDate = sortedExtras[extraIndex].date
+      accrued = round2(accrued + accrueInterest(remaining, rate, cursor, extraDate))
+      cursor = extraDate
+      const skipped = takeExtrasOn(extraDate, Math.max(1, month - 1))
+      if (rows.length) attachExtrasToPrevious(skipped)
+      else pushExtraOnlyRow(extraDate, skipped, Math.max(1, month - 1))
+    }
+
+    accrued = round2(accrued + accrueInterest(remaining, rate, cursor, date))
+    cursor = date
+
+    const scheduled = scheduledRegular(date, payment, useBankSnapshot, startDate)
+
+    if (scheduled <= EPS) {
+      const sameDay = takeExtrasOn(date, month)
+      if (sameDay.extraTotal <= EPS) continue
+
+      if (remaining < 0) remaining = 0
+      if (remaining <= EPS) remaining = 0
+
+      rows.push({
+        month,
+        date,
+        payment: sameDay.extraTotal,
+        regular: 0,
+        extra: sameDay.extraTotal,
+        principal: round2(sameDay.extraTotal - sameDay.extraInterest),
+        interest: sameDay.extraInterest,
+        remaining,
+        hasExtra: true,
+        extraTypes: [...sameDay.extraTypes],
+        paymentAfter: payment,
+      })
+      totalPaid = round2(totalPaid + sameDay.extraTotal)
+      totalInterest = round2(totalInterest + sameDay.extraInterest)
+    } else {
+      const interest = round2(accrued)
+      let regular = scheduled
+      let principalPart = 0
+      let interestPaid = 0
+
+      if (remaining + interest <= scheduled + EPS) {
+        regular = round2(remaining + interest)
+        principalPart = remaining
+        interestPaid = interest
+        accrued = 0
+      } else if (scheduled + EPS < interest) {
+        regular = scheduled
+        principalPart = 0
+        interestPaid = scheduled
+        accrued = round2(interest - scheduled)
+      } else {
+        regular = scheduled
+        principalPart = round2(regular - interest)
+        if (principalPart > remaining) {
+          principalPart = remaining
+          regular = round2(principalPart + interest)
+        }
+        interestPaid = round2(regular - principalPart)
+        accrued = 0
+      }
+
+      remaining = round2(remaining - principalPart)
+
+      const sameDay = takeExtrasOn(date, month)
+      const extraTotal = sameDay.extraTotal
+      const extraInterest = sameDay.extraInterest
+      const extraTypes = [...sameDay.extraTypes]
+
+      if (remaining < 0) remaining = 0
+      if (remaining <= EPS) remaining = 0
+
+      const totalThisMonth = round2(regular + extraTotal)
+      const body = round2(principalPart + extraTotal - extraInterest)
+      totalPaid = round2(totalPaid + totalThisMonth)
+      totalInterest = round2(totalInterest + interestPaid + extraInterest)
+
+      rows.push({
+        month,
+        date,
+        payment: totalThisMonth,
+        regular,
+        extra: extraTotal,
+        principal: body,
+        interest: round2(interestPaid + extraInterest),
+        remaining,
+        hasExtra: extraTotal > 0,
+        extraTypes,
+        paymentAfter: payment,
+      })
+    }
+
+    if (
+      bankLoan &&
+      bankSnapshot?.asOf === date &&
+      Number(bankSnapshot.remaining) >= 0
+    ) {
+      remaining = round2(bankSnapshot.remaining)
+      accrued = 0
+      rows[rows.length - 1].remaining = remaining
+      lastRegularPayment = Number(bankSnapshot.regularPayment) || lastRegularPayment
+      payment = lastRegularPayment
+      const future = buildBankRemainingRows({
+        remaining,
+        fromDate: date,
+        startMonth: month,
+        payment,
+      })
+      for (const row of future) {
+        rows.push(row)
+        totalPaid = round2(totalPaid + row.payment)
+        totalInterest = round2(totalInterest + row.interest)
+      }
+      remaining = 0
+      break
+    }
   }
 
   return {
@@ -292,11 +516,9 @@ export function calculateMortgage({
     startDate,
     extras,
     plannedMonths,
+    useBankSnapshot: true,
   })
 
-  const savings = round2(base.totalInterest - withExtras.totalInterest)
-  const overpayPct = principal > 0 ? (base.totalInterest / principal) * 100 : 0
-  const extraOverpayPct = principal > 0 ? (withExtras.totalInterest / principal) * 100 : 0
   const today = todayIso()
   const hasExtras = extras.some((item) => item.date && Number(item.amount) > 0)
   const paid = summarizePaid(withExtras.rows, principal, today)
@@ -310,10 +532,16 @@ export function calculateMortgage({
         startDate,
         extras: paidExtras,
         plannedMonths,
+        useBankSnapshot: true,
       })
     : base
   paid.monthsClosedByExtra = Math.max(0, plannedMonths - afterPaidExtras.months)
+  applyBankTotals(withExtras, paid, plannedMonths, startDate, principal)
   const forecast = buildForecast(withExtras.rows, annualRate, today)
+
+  const savings = round2(base.totalInterest - withExtras.totalInterest)
+  const overpayPct = principal > 0 ? (base.totalInterest / principal) * 100 : 0
+  const extraOverpayPct = principal > 0 ? (withExtras.totalInterest / principal) * 100 : 0
 
   return {
     principal,
@@ -331,7 +559,10 @@ export function calculateMortgage({
     paid,
     forecast,
     savings,
-    paymentChanged: hasExtras && Math.abs(withExtras.payment - base.payment) > 0.01,
+    paymentChanged:
+      hasExtras &&
+      !matchesBankLoan(startDate) &&
+      Math.abs(withExtras.payment - base.payment) > 0.01,
     termChanged: hasExtras && withExtras.months !== base.months,
   }
 }

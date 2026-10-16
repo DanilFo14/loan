@@ -1,12 +1,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import LoanParams from './components/LoanParams.vue'
-import EarlyPayments from './components/EarlyPayments.vue'
 import Results from './components/Results.vue'
 import DebtChart from './components/DebtChart.vue'
 import ScheduleTable from './components/ScheduleTable.vue'
-import { addMonths, calculateMortgage } from './lib/calc.js'
-import { defaultState, loadState, saveState } from './lib/storage.js'
+import { calculateMortgage } from './lib/calc.js'
+import { loadState, saveState } from './lib/storage.js'
 
 const state = ref(loadState())
 
@@ -22,31 +21,6 @@ const result = computed(() =>
   }),
 )
 
-function addExtra() {
-  const last = state.value.extras.at(-1)
-  const date = last?.date || addMonths(state.value.startDate, 6)
-  state.value.extras.push({
-    id: crypto.randomUUID(),
-    date,
-    amount: 100_000,
-    type: 'term',
-  })
-}
-
-function removeExtra(id) {
-  state.value.extras = state.value.extras.filter((item) => item.id !== id)
-}
-
-function updateExtra(id, patch) {
-  const item = state.value.extras.find((extra) => extra.id === id)
-  if (item) Object.assign(item, patch)
-}
-
-function reset() {
-  const next = defaultState()
-  state.value = next
-  saveState(next)
-}
 </script>
 
 <template>
@@ -68,15 +42,6 @@ function reset() {
           v-model:years="state.years"
           v-model:startDate="state.startDate"
         />
-        <EarlyPayments
-          :extras="state.extras"
-          @add="addExtra"
-          @remove="removeExtra"
-          @update="updateExtra"
-        />
-        <div class="toolbar">
-          <button type="button" class="btn-ghost" @click="reset">Сбросить</button>
-        </div>
       </div>
 
       <div class="stack">
