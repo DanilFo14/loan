@@ -34,19 +34,20 @@ export const earlyPayments = [
 export const bankSnapshot = {
   startDate: '2026-05-13',
   asOf: '2026-11-13',
-  remaining: 1_869_830.57,
+  remaining: 1_916_770.1,
   regularPayment: 46_674,
   firstRegularDate: '2026-06-13',
   regularOverrides: {
     '2026-06-13': 21_674,
     '2026-10-13': 0,
+    '2026-11-13': 0,
   },
-  alreadyPaid: 1_322_718,
-  remainingToPay: 2_772_034.91,
-  totalToPay: 4_094_752.91,
-  remainingPayments: 60,
-  lastPayment: 18_268.91,
-  lastPaymentDate: '2031-11-13',
+  alreadyPaid: 1_276_044,
+  remainingToPay: 2_882_285.17,
+  totalToPay: 4_158_329.17,
+  remainingPayments: 62,
+  lastPayment: 35_171.17,
+  lastPaymentDate: '2032-01-13',
 }
 
 export function seededExtras() {

@@ -78,8 +78,8 @@ assert(
 
 const live = calculateMortgage(seeded)
 assert(live, 'seeded mortgage must calculate')
-assert(live.paid.remaining === 1_869_830.57, `remaining after 13.11.2026, got ${live.paid.remaining}`)
-assert(live.paid.spent === 1_322_718, `already paid after 13.11.2026, got ${live.paid.spent}`)
+assert(live.paid.remaining === 1_916_770.1, `remaining after 13.11.2026, got ${live.paid.remaining}`)
+assert(live.paid.spent === 1_276_044, `already paid after 13.11.2026, got ${live.paid.spent}`)
 assert(
   live.extra.rows.find((row) => row.date === '2026-11-12')?.extra === 46_674,
   'schedule must include the 12.11 extra',
