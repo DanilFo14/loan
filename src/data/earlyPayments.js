@@ -25,25 +25,29 @@ export const earlyPayments = [
   { date: '2026-10-13', amount: 60_000, type: 'term' },
   { date: '2026-10-13', amount: 60_000, type: 'term' },
   { date: '2026-10-13', amount: 30_000, type: 'term' },
+  { date: '2026-11-12', amount: 46_674, type: 'term' },
+  { date: '2026-11-13', amount: 120_000, type: 'term' },
+  { date: '2026-11-13', amount: 30_000, type: 'term' },
 ]
 
-/** Выписка банка: обязательный платёж, уже выплаченное и остаток после 13.10.2026. */
+/** Выписка банка: обязательный платёж, уже выплаченное и остаток после 13.11.2026. */
 export const bankSnapshot = {
   startDate: '2026-05-13',
-  asOf: '2026-10-13',
-  remaining: 2_083_288,
+  asOf: '2026-11-13',
+  remaining: 1_916_770.1,
   regularPayment: 46_674,
   firstRegularDate: '2026-06-13',
   regularOverrides: {
     '2026-06-13': 21_674,
     '2026-10-13': 0,
+    '2026-11-13': 0,
   },
-  alreadyPaid: 1_079_370,
-  remainingToPay: 3_327_124.54,
-  totalToPay: 4_406_494.54,
-  remainingPayments: 72,
-  lastPayment: 13_270.54,
-  lastPaymentDate: '2032-10-13',
+  alreadyPaid: 1_276_044,
+  remainingToPay: 2_882_285.17,
+  totalToPay: 4_158_329.17,
+  remainingPayments: 62,
+  lastPayment: 35_171.17,
+  lastPaymentDate: '2032-01-13',
 }
 
 export function seededExtras() {

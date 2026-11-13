@@ -221,21 +221,6 @@ function buildSchedule({ amount, rate, startDate, extras, plannedMonths, useBank
     totalInterest = round2(totalInterest + skipped.extraInterest)
   }
 
-  const attachExtrasToPrevious = (skipped) => {
-    if (skipped.extraTotal <= EPS) return
-    const prev = rows[rows.length - 1]
-    prev.extra = round2(prev.extra + skipped.extraTotal)
-    prev.interest = round2(prev.interest + skipped.extraInterest)
-    prev.principal = round2(prev.principal + skipped.extraTotal - skipped.extraInterest)
-    prev.payment = round2(prev.payment + skipped.extraTotal)
-    prev.remaining = remaining
-    prev.hasExtra = prev.extra > 0
-    prev.extraTypes.push(...skipped.extraTypes)
-    prev.paymentAfter = payment
-    totalPaid = round2(totalPaid + skipped.extraTotal)
-    totalInterest = round2(totalInterest + skipped.extraInterest)
-  }
-
   for (let month = 1; month <= MAX_MONTHS && (remaining > EPS || accrued > EPS); month += 1) {
     const date = addMonths(startDate, month - 1)
 
@@ -243,9 +228,8 @@ function buildSchedule({ amount, rate, startDate, extras, plannedMonths, useBank
       const extraDate = sortedExtras[extraIndex].date
       accrued = round2(accrued + accrueInterest(remaining, rate, cursor, extraDate))
       cursor = extraDate
-      const skipped = takeExtrasOn(extraDate, Math.max(1, month - 1))
-      if (rows.length) attachExtrasToPrevious(skipped)
-      else pushExtraOnlyRow(extraDate, skipped, Math.max(1, month - 1))
+      const skipped = takeExtrasOn(extraDate, calendarMonthsInclusive(startDate, extraDate))
+      pushExtraOnlyRow(extraDate, skipped, calendarMonthsInclusive(startDate, extraDate))
     }
 
     accrued = round2(accrued + accrueInterest(remaining, rate, cursor, date))

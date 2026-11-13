@@ -1,4 +1,6 @@
+import { earlyPayments } from '../src/data/earlyPayments.js'
 import { annuityPayment, calculateMortgage } from '../src/lib/calc.js'
+import { defaultState } from '../src/lib/storage.js'
 
 function assert(cond, message) {
   if (!cond) throw new Error(message)
@@ -64,6 +66,30 @@ const heavy = calculateMortgage({
 assert(heavy.extra.rows.length <= 360, 'must stay within 30 years')
 assert(termMs < 50, `calc took ${termMs.toFixed(2)} ms`)
 
+const seeded = defaultState()
+assert(
+  earlyPayments.some((item) => item.date === '2026-11-12' && item.amount === 46_674),
+  'November 12 extra of 46674 must be seeded',
+)
+assert(
+  earlyPayments.filter((item) => item.date === '2026-11-13').reduce((sum, item) => sum + item.amount, 0) === 150_000,
+  'November 13 extras must total 150000',
+)
+
+const live = calculateMortgage(seeded)
+assert(live, 'seeded mortgage must calculate')
+assert(live.paid.remaining === 1_916_770.1, `remaining after 13.11.2026, got ${live.paid.remaining}`)
+assert(live.paid.spent === 1_276_044, `already paid after 13.11.2026, got ${live.paid.spent}`)
+assert(
+  live.extra.rows.find((row) => row.date === '2026-11-12')?.extra === 46_674,
+  'schedule must include the 12.11 extra',
+)
+assert(
+  live.extra.rows.find((row) => row.date === '2026-11-13')?.extra === 150_000,
+  'schedule must include the 13.11 extras',
+)
+
 console.log('term months', withTerm.extra.months, 'savings', withTerm.savings)
 console.log('new payment', withPayment.extra.payment)
+console.log('seeded remaining', live.paid.remaining, 'spent', live.paid.spent, 'end', live.extra.endDate)
 console.log('ok', termMs.toFixed(2), 'ms')

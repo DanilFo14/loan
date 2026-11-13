@@ -36,7 +36,7 @@ function typeLabel(types) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in rows" :key="row.month" :class="{ extra: row.hasExtra }">
+          <tr v-for="row in rows" :key="row.date" :class="{ extra: row.hasExtra }">
             <td>
               <strong>{{ row.month }}</strong>
               <span>{{ formatDate(row.date) }}</span>
